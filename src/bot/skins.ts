@@ -4,7 +4,8 @@ import {
   profileFromPolygon,
   regularPolygonProfile,
   superellipseProfile,
-  unionOfCirclesProfile
+  unionOfCirclesProfile,
+  type Point
 } from './shape'
 
 /**
@@ -33,6 +34,7 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
+  | 'maison'
 
 export interface BotShape {
   id: ShapeId
@@ -76,6 +78,43 @@ const droplet = normalize(
 /** Capsule couchee : enveloppe de deux disques cote a cote. */
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
+
+// Exact 64-point exterior contour sampled from the user's STR Host PNG.
+// A radial-only outline would fill in the chimney notch, hence the contour.
+export const HOUSE_CONTOUR: Point[] = [
+  [936, 438], [930, 488], [889, 498], [856, 517],
+  [856, 571], [856, 624], [856, 678], [856, 731],
+  [856, 785], [856, 838], [856, 892], [855, 939],
+  [811, 952], [759, 952], [708, 951], [654, 952],
+  [603, 951], [550, 952], [500, 952], [451, 951],
+  [403, 952], [349, 951], [298, 951], [246, 951],
+  [195, 952], [165, 923], [165, 872], [165, 818],
+  [165, 765], [165, 711], [165, 658], [165, 604],
+  [165, 551], [166, 499], [116, 498], [86, 468],
+  [94, 419], [129, 390], [165, 362], [201, 333],
+  [238, 306], [266, 272], [266, 219], [266, 165],
+  [266, 111], [283, 71], [332, 71], [384, 71],
+  [403, 109], [403, 163], [429, 159], [465, 131],
+  [503, 105], [544, 121], [580, 148], [617, 176],
+  [654, 204], [691, 232], [727, 260], [764, 289],
+  [800, 316], [837, 345], [873, 373], [909, 402]
+].map(([x, y]) => ({ x: (x! - 512) / 425, y: (y! - 512) / 425 }))
+export const HOUSE_RADII = profileFromPolygon(HOUSE_CONTOUR, 0, 0)
+
+/** Four-pane window cutouts; their vertical contraction reproduces the user's GIF. */
+export function houseWindowsPath(scale: number): string {
+  const panes = [
+    [300, 518, 364, 628], [380, 518, 444, 628],
+    [300, 643, 364, 752], [380, 643, 444, 752],
+    [577, 518, 642, 628], [657, 518, 722, 628],
+    [577, 643, 642, 752], [657, 643, 722, 752]
+  ]
+  const coord = (v: number) => Math.round((v * scale / 425) * 100) / 100
+  return panes.map(([x1, y1, x2, y2]) =>
+    `M${coord(x1! - 512)} ${coord(y1! - 512)}h${coord(x2! - x1!)}v${coord(y2! - y1!)}h${-coord(x2! - x1!)}Z`
+  ).join('')
+}
+
 export const SHAPES: BotShape[] = [
   { id: 'cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: 'galet', radii: pebble },
@@ -88,7 +127,8 @@ export const SHAPES: BotShape[] = [
   // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
   { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: 'nuage', radii: cloud },
-  { id: 'goutte', radii: droplet }
+  { id: 'goutte', radii: droplet },
+  { id: 'maison', radii: HOUSE_RADII }
 ]
 
 // Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec
@@ -120,7 +160,7 @@ export const COLORS: BotColor[] = [
   { id: 'encre', hex: '#0a0a0c' },
   { id: 'brun', hex: '#8b5e3c' },
   { id: 'rouge', hex: '#e8483f' },
-  { id: 'orange', hex: '#f08a24' },
+  { id: 'orange', hex: '#f5701c' },
   { id: 'ambre', hex: '#f0b429' },
   { id: 'vert', hex: '#3ecf8e' },
   { id: 'turquoise', hex: '#2fbfa0' },

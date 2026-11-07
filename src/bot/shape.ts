@@ -16,6 +16,8 @@ export interface Point {
  */
 export interface Silhouette {
   radii: number[]
+  /** Optional exact outline for non-star-shaped custom silhouettes. */
+  contour?: Point[]
   /** rotation du profil, en radians */
   rot: number
   /** decalage du centre, en unites de rayon de boule */
@@ -57,9 +59,22 @@ export function circle(radius: number, pose: Partial<Silhouette> = {}): Silhouet
 
 /** Interpolation de deux silhouettes. `out` est reutilise pour eviter d'allouer a 60 fps. */
 export function blend(a: Silhouette, b: Silhouette, t: number, out?: Silhouette): Silhouette {
-  const dst = out ?? { radii: new Array<number>(PROFILE_SAMPLES), rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }
+  const dst: Silhouette = out ?? { radii: new Array<number>(PROFILE_SAMPLES), rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }
   for (let i = 0; i < PROFILE_SAMPLES; i++) {
     dst.radii[i] = lerp(a.radii[i] ?? 1, b.radii[i] ?? 1, t)
+  }
+  // Exact outlines interpolate point-by-point to ordinary radial profiles.
+  // This preserves concavities such as the chimney cutout of a house.
+  if (a.contour || b.contour) {
+    const point = (s: Silhouette, i: number): Point =>
+      s.contour?.[i] ?? { x: (s.radii[i] ?? 1) * COS[i]!, y: (s.radii[i] ?? 1) * SIN[i]! }
+    dst.contour = Array.from({ length: PROFILE_SAMPLES }, (_, i) => {
+      const p = point(a, i)
+      const q = point(b, i)
+      return { x: lerp(p.x, q.x, t), y: lerp(p.y, q.y, t) }
+    })
+  } else {
+    delete dst.contour
   }
   // Rotation par le chemin le plus court : evite de faire un tour complet
   // quand on passe par exemple de +170deg a -170deg.
@@ -80,8 +95,8 @@ export function toPoints(s: Silhouette, scale: number, out: Point[] = []): Point
   const sr = Math.sin(s.rot)
   for (let i = 0; i < PROFILE_SAMPLES; i++) {
     const r = s.radii[i] ?? 1
-    const x = r * (COS[i] ?? 0)
-    const y = r * (SIN[i] ?? 0)
+    const x = s.contour?.[i]?.x ?? r * (COS[i] ?? 0)
+    const y = s.contour?.[i]?.y ?? r * (SIN[i] ?? 0)
     // rotation puis squash en repere ecran, puis translation
     const rx = x * cr - y * sr
     const ry = x * sr + y * cr

@@ -511,7 +511,15 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
           :key="i"
           :d="eye.d"
           :transform="eye.matrix"
-          :opacity="eye.alpha"
+          :opacity="eye.alpha * (1 - frame.houseWindowsAlpha)"
+          fill="#000"
+        />
+        <!-- The source house's two four-pane windows are literal cutouts. -->
+        <path
+          v-if="frame.houseWindowsAlpha > 0"
+          :d="frame.houseWindowsPath"
+          :opacity="frame.houseWindowsAlpha"
+          :transform="`translate(0 ${29 * R / 100}) scale(1 ${frame.houseWindowsBlink}) translate(0 ${-29 * R / 100})`"
           fill="#000"
         />
         <circle
@@ -579,7 +587,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
         laissaient voir jusqu'ici, le fond de la page. Les mettre en blanc les
         rendrait plus clairs que le fond, ce qui se verrait sur une grande boule.
       -->
-      <path :d="frame.bodyPath" :fill="props.paper" />
+      <path :d="frame.bodyPath" :fill="props.paper" :opacity="1 - frame.houseWindowsAlpha" />
       <g :mask="`url(#${maskId})`">
         <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
       </g>

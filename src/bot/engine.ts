@@ -13,6 +13,7 @@ import {
   type Silhouette
 } from './shape'
 import { STATE_BY_ID, type Pose, type StateDef, type StateId } from './states'
+import { HOUSE_CONTOUR, HOUSE_RADII, houseWindowsPath } from './skins'
 
 export interface RenderedEye {
   d: string
@@ -23,6 +24,10 @@ export interface RenderedEye {
 export interface BotFrame {
   bodyPath: string
   bodyAlpha: number
+  /** House windows remain real negative-space cutouts and use the native blink clock. */
+  houseWindowsPath: string
+  houseWindowsAlpha: number
+  houseWindowsBlink: number
   eyes: RenderedEye[]
   dots: DotRender[]
   /** true = les points passent derriere le corps (particules de l'eclatement) */
@@ -230,6 +235,42 @@ export class BotEngine {
   }
 
   /**
+   * A chimney is concave, so a single radial profile cannot retain it. The
+   * exact outline follows the selected shape and interpolates to radial shapes
+   * with the same easing used by setShape.
+   */
+  private houseContourAtTime(now: number): Point[] | undefined {
+    const from = this.shapePrev
+    const to = this.shape
+    if (!to || (from !== HOUSE_RADII && to !== HOUSE_RADII)) return undefined
+    if (!from || from === to) return to === HOUSE_RADII ? HOUSE_CONTOUR : undefined
+    const k = (now - this.shapeAt) / BotEngine.SHAPE_MORPH
+    if (k >= 1) return to === HOUSE_RADII ? HOUSE_CONTOUR : undefined
+    const t = easings.easeOutQuint(clamp(k))
+    const points = (radii: number[]): Point[] =>
+      radii === HOUSE_RADII
+        ? HOUSE_CONTOUR
+        : radii.map((r, i) => {
+            const angle = (i / radii.length) * Math.PI * 2
+            return { x: r * Math.cos(angle), y: r * Math.sin(angle) }
+          })
+    const a = points(from)
+    const b = points(to)
+    return a.map((p, i) => ({
+      x: lerp(p.x, b[i]!.x, t),
+      y: lerp(p.y, b[i]!.y, t)
+    }))
+  }
+
+  private houseWeightAtTime(now: number): number {
+    const to = this.shape === HOUSE_RADII ? 1 : 0
+    const from = this.shapePrev === HOUSE_RADII ? 1 : 0
+    if (!this.shapePrev || this.shapePrev === this.shape) return to
+    const k = (now - this.shapeAt) / BotEngine.SHAPE_MORPH
+    return lerp(from, to, easings.easeOutQuint(clamp(k)))
+  }
+
+  /**
    * Nouvelle cible de regard, `null` pour revenir a celui de l'etat.
    *
    * Elle repart de la valeur COURANTE, et non de la cible precedente comme
@@ -270,12 +311,13 @@ export class BotEngine {
     def: StateDef,
     t: number,
     shape: number[] | null,
-    expr: BotExpression | null
+    expr: BotExpression | null,
+    contour?: Point[]
   ): Pose {
     let pose = def.pose(t)
     if (def.baseBody && shape) {
       // on garde la pose (rotation, decalage, squash) et on n'echange que le profil
-      pose = { ...pose, sil: { ...pose.sil, radii: shape } }
+      pose = { ...pose, sil: { ...pose.sil, radii: shape, ...(contour ? { contour } : {}) } }
     }
     if (def.baseFace && expr) {
       pose = { ...pose, gaze: expr.gaze, split: expr.split, eyes: expr.eyes }
@@ -365,12 +407,13 @@ export class BotEngine {
   private origine(
     now: number,
     shape: number[] | null,
-    expr: BotExpression | null
+    expr: BotExpression | null,
+    contour?: Point[]
   ): Pose | null {
     if (this.departFige) return this.departFige
     if (!this.prev) return null
     const prevDef = STATE_BY_ID.get(this.prev)!
-    return this.posed(prevDef, Math.max(0, now - this.tPrev), shape, expr)
+    return this.posed(prevDef, Math.max(0, now - this.tPrev), shape, expr, contour)
   }
 
   /**
@@ -382,10 +425,11 @@ export class BotEngine {
     const def = STATE_BY_ID.get(this.cur)!
     const shape = this.shapeAtTime(now)
     const expr = this.exprAtTime(now)
-    const pose = this.posed(def, Math.max(0, now - this.tCur), shape, expr)
+    const contour = this.houseContourAtTime(now)
+    const pose = this.posed(def, Math.max(0, now - this.tCur), shape, expr, contour)
     const since = now - this.tCur
     if (since >= def.morph) return pose
-    const origine = this.origine(now, shape, expr)
+    const origine = this.origine(now, shape, expr, contour)
     if (!origine) return pose
     return blendPose(origine, pose, easings.easeOutQuint(clamp(since / def.morph)))
   }
@@ -426,7 +470,8 @@ export class BotEngine {
     const def = STATE_BY_ID.get(this.cur)!
     const shape = this.shapeAtTime(now)
     const expr = this.exprAtTime(now)
-    let pose = this.posed(def, Math.max(0, now - this.tCur), shape, expr)
+    const contour = this.houseContourAtTime(now)
+    let pose = this.posed(def, Math.max(0, now - this.tCur), shape, expr, contour)
     let decalage = this.decalageAtTime(now, this.cur)
 
     // --- transition -------------------------------------------------------
@@ -435,7 +480,7 @@ export class BotEngine {
     // l'ignorer une fois le fondu passe, et l'oublier rendrait le moteur non
     // rejouable — relire une date d'avant la fin du fondu ne le retrouverait
     // plus. C'est l'optimisation qui parait innocente et qui casse tout.
-    const origine = since < def.morph ? this.origine(now, shape, expr) : null
+    const origine = since < def.morph ? this.origine(now, shape, expr, contour) : null
     if (origine) {
       // Ease-out exponentiel : c'est la courbe mesuree sur la video. Le corps
       // n'a pas d'overshoot (seuls la pastille et l'ouverture des yeux en ont).
@@ -456,6 +501,15 @@ export class BotEngine {
         }
       }
     }
+
+    // The two four-pane windows replace the eyes only while the house rests.
+    // They dissolve into the native Grok eyes at exactly the state morph speed.
+    let idleWeight = this.cur === 'idle' ? 1 : 0
+    if (this.prev && since < def.morph) {
+      const k = easings.easeOutQuint(clamp(since / def.morph))
+      idleWeight = lerp(this.prev === 'idle' ? 1 : 0, idleWeight, k)
+    }
+    const houseWindowsAlpha = this.houseWeightAtTime(now) * idleWeight
 
     // --- vie au repos -----------------------------------------------------
     const alive = pose.eyeAlpha > 0.01
@@ -542,6 +596,9 @@ export class BotEngine {
     return {
       bodyPath,
       bodyAlpha: pose.bodyAlpha,
+      houseWindowsPath: houseWindowsPath(R),
+      houseWindowsAlpha,
+      houseWindowsBlink: blinkScale(lid),
       eyes,
       dots,
       dotsBehind: pose.dotsBehind,

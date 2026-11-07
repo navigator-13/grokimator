@@ -165,6 +165,7 @@ export default {
     triangle: 'Triangle',
     hexagone: 'Hexagone',
     nuage: 'Nuage',
+    maison: 'Maison',
     goutte: 'Goutte'
   },
 
