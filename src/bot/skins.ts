@@ -79,41 +79,27 @@ const droplet = normalize(
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
 
-// House outline traced from the supplied 1024px STR Host avatar. Unlike a radial
-// profile, this retains the chimney's concave notch during state morphs.
-const HOUSE_VERTICES: Point[] = [
-  [936, 438], [936, 473], [931, 489], [916, 498], [858, 498],
-  [858, 926], [852, 944], [838, 952], [185, 952], [166, 940],
-  [165, 926], [165, 499], [107, 498], [92, 490], [87, 473],
-  [87, 440], [94, 420], [266, 284], [266, 89], [271, 77],
-  [282, 72], [388, 72], [399, 77], [403, 88], [403, 180],
-  [499, 108], [510, 103], [525, 108], [925, 413]
+// Exact 64-point exterior contour sampled from the user's STR Host PNG.
+// A radial-only outline would fill in the chimney notch, hence the contour.
+export const HOUSE_CONTOUR: Point[] = [
+  [936, 438], [930, 488], [889, 498], [856, 517],
+  [856, 571], [856, 624], [856, 678], [856, 731],
+  [856, 785], [856, 838], [856, 892], [855, 939],
+  [811, 952], [759, 952], [708, 951], [654, 952],
+  [603, 951], [550, 952], [500, 952], [451, 951],
+  [403, 952], [349, 951], [298, 951], [246, 951],
+  [195, 952], [165, 923], [165, 872], [165, 818],
+  [165, 765], [165, 711], [165, 658], [165, 604],
+  [165, 551], [166, 499], [116, 498], [86, 468],
+  [94, 419], [129, 390], [165, 362], [201, 333],
+  [238, 306], [266, 272], [266, 219], [266, 165],
+  [266, 111], [283, 71], [332, 71], [384, 71],
+  [403, 109], [403, 163], [429, 159], [465, 131],
+  [503, 105], [544, 121], [580, 148], [617, 176],
+  [654, 204], [691, 232], [727, 260], [764, 289],
+  [800, 316], [837, 345], [873, 373], [909, 402]
 ].map(([x, y]) => ({ x: (x! - 512) / 425, y: (y! - 512) / 425 }))
-
-/** Equal-perimeter samples, beginning at the right edge, clockwise. */
-function resampleClosed(points: Point[], count: number): Point[] {
-  const lengths = points.map((p, i) =>
-    Math.hypot(points[(i + 1) % points.length]!.x - p.x, points[(i + 1) % points.length]!.y - p.y))
-  const total = lengths.reduce((a, b) => a + b, 0)
-  const result: Point[] = []
-  let edge = 0
-  let start = 0
-  for (let i = 0; i < count; i++) {
-    const at = (i / count) * total
-    while (edge < lengths.length - 1 && start + lengths[edge]! < at) {
-      start += lengths[edge]!
-      edge++
-    }
-    const p = points[edge]!
-    const q = points[(edge + 1) % points.length]!
-    const t = (at - start) / Math.max(1e-9, lengths[edge]!)
-    result.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t })
-  }
-  return result
-}
-
-export const HOUSE_CONTOUR = resampleClosed(HOUSE_VERTICES, PROFILE_SAMPLES)
-export const HOUSE_RADII = profileFromPolygon(HOUSE_VERTICES, 0, 0)
+export const HOUSE_RADII = profileFromPolygon(HOUSE_CONTOUR, 0, 0)
 
 /** Four-pane window cutouts; their vertical contraction reproduces the user's GIF. */
 export function houseWindowsPath(scale: number): string {
