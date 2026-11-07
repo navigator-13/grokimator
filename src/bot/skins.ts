@@ -4,7 +4,8 @@ import {
   profileFromPolygon,
   regularPolygonProfile,
   superellipseProfile,
-  unionOfCirclesProfile
+  unionOfCirclesProfile,
+  type Point
 } from './shape'
 
 /**
@@ -33,6 +34,7 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
+  | 'maison'
 
 export interface BotShape {
   id: ShapeId
@@ -76,6 +78,57 @@ const droplet = normalize(
 /** Capsule couchee : enveloppe de deux disques cote a cote. */
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
+
+// House outline traced from the supplied 1024px STR Host avatar. Unlike a radial
+// profile, this retains the chimney's concave notch during state morphs.
+const HOUSE_VERTICES: Point[] = [
+  [936, 438], [936, 473], [931, 489], [916, 498], [858, 498],
+  [858, 926], [852, 944], [838, 952], [185, 952], [166, 940],
+  [165, 926], [165, 499], [107, 498], [92, 490], [87, 473],
+  [87, 440], [94, 420], [266, 284], [266, 89], [271, 77],
+  [282, 72], [388, 72], [399, 77], [403, 88], [403, 180],
+  [499, 108], [510, 103], [525, 108], [925, 413]
+].map(([x, y]) => ({ x: (x! - 512) / 425, y: (y! - 512) / 425 }))
+
+/** Equal-perimeter samples, beginning at the right edge, clockwise. */
+function resampleClosed(points: Point[], count: number): Point[] {
+  const lengths = points.map((p, i) =>
+    Math.hypot(points[(i + 1) % points.length]!.x - p.x, points[(i + 1) % points.length]!.y - p.y))
+  const total = lengths.reduce((a, b) => a + b, 0)
+  const result: Point[] = []
+  let edge = 0
+  let start = 0
+  for (let i = 0; i < count; i++) {
+    const at = (i / count) * total
+    while (edge < lengths.length - 1 && start + lengths[edge]! < at) {
+      start += lengths[edge]!
+      edge++
+    }
+    const p = points[edge]!
+    const q = points[(edge + 1) % points.length]!
+    const t = (at - start) / Math.max(1e-9, lengths[edge]!)
+    result.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t })
+  }
+  return result
+}
+
+export const HOUSE_CONTOUR = resampleClosed(HOUSE_VERTICES, PROFILE_SAMPLES)
+export const HOUSE_RADII = profileFromPolygon(HOUSE_VERTICES, 0, 0)
+
+/** Four-pane window cutouts; their vertical contraction reproduces the user's GIF. */
+export function houseWindowsPath(scale: number): string {
+  const panes = [
+    [300, 518, 364, 628], [380, 518, 444, 628],
+    [300, 643, 364, 752], [380, 643, 444, 752],
+    [577, 518, 642, 628], [657, 518, 722, 628],
+    [577, 643, 642, 752], [657, 643, 722, 752]
+  ]
+  const coord = (v: number) => Math.round((v * scale / 425) * 100) / 100
+  return panes.map(([x1, y1, x2, y2]) =>
+    `M${coord(x1! - 512)} ${coord(y1! - 512)}h${coord(x2! - x1!)}v${coord(y2! - y1!)}h${-coord(x2! - x1!)}Z`
+  ).join('')
+}
+
 export const SHAPES: BotShape[] = [
   { id: 'cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: 'galet', radii: pebble },
@@ -88,7 +141,8 @@ export const SHAPES: BotShape[] = [
   // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
   { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: 'nuage', radii: cloud },
-  { id: 'goutte', radii: droplet }
+  { id: 'goutte', radii: droplet },
+  { id: 'maison', radii: HOUSE_RADII }
 ]
 
 // Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec
@@ -120,7 +174,7 @@ export const COLORS: BotColor[] = [
   { id: 'encre', hex: '#0a0a0c' },
   { id: 'brun', hex: '#8b5e3c' },
   { id: 'rouge', hex: '#e8483f' },
-  { id: 'orange', hex: '#f08a24' },
+  { id: 'orange', hex: '#f5701c' },
   { id: 'ambre', hex: '#f0b429' },
   { id: 'vert', hex: '#3ecf8e' },
   { id: 'turquoise', hex: '#2fbfa0' },
