@@ -587,7 +587,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
         laissaient voir jusqu'ici, le fond de la page. Les mettre en blanc les
         rendrait plus clairs que le fond, ce qui se verrait sur une grande boule.
       -->
-      <path :d="frame.bodyPath" :fill="props.paper" />
+      <path :d="frame.bodyPath" :fill="props.paper" :opacity="1 - frame.houseWindowsAlpha" />
       <g :mask="`url(#${maskId})`">
         <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
       </g>
