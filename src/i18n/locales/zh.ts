@@ -143,6 +143,7 @@ const zh: typeof fr = {
     triangle: '三角形',
     hexagone: '六边形',
     nuage: '云朵',
+    maison: '房屋',
     goutte: '水滴'
   },
 
