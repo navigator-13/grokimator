@@ -59,7 +59,7 @@ export function circle(radius: number, pose: Partial<Silhouette> = {}): Silhouet
 
 /** Interpolation de deux silhouettes. `out` est reutilise pour eviter d'allouer a 60 fps. */
 export function blend(a: Silhouette, b: Silhouette, t: number, out?: Silhouette): Silhouette {
-  const dst = out ?? { radii: new Array<number>(PROFILE_SAMPLES), rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }
+  const dst: Silhouette = out ?? { radii: new Array<number>(PROFILE_SAMPLES), rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 }
   for (let i = 0; i < PROFILE_SAMPLES; i++) {
     dst.radii[i] = lerp(a.radii[i] ?? 1, b.radii[i] ?? 1, t)
   }
