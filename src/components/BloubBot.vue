@@ -511,7 +511,15 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
           :key="i"
           :d="eye.d"
           :transform="eye.matrix"
-          :opacity="eye.alpha"
+          :opacity="eye.alpha * (1 - frame.houseWindowsAlpha)"
+          fill="#000"
+        />
+        <!-- The source house's two four-pane windows are literal cutouts. -->
+        <path
+          v-if="frame.houseWindowsAlpha > 0"
+          :d="frame.houseWindowsPath"
+          :opacity="frame.houseWindowsAlpha"
+          :transform="`translate(0 ${29 * R / 100}) scale(1 ${frame.houseWindowsBlink}) translate(0 ${-29 * R / 100})`"
           fill="#000"
         />
         <circle
