@@ -34,7 +34,7 @@ describe('STR Host house avatar', () => {
 
   it('morphs the custom contour to a catalogue radial shape', () => {
     const engine = new BotEngine(100, 'idle', HOUSE_RADII)
-    const start = engine.sample(0).bodyPath
+    const start = engine.sample(1).bodyPath
     engine.setShape(SHAPE_BY_ID.get('cercle')!.radii, 1)
     expect(engine.sample(1).bodyPath).toBe(start)
     expect(engine.sample(1.5).bodyPath).not.toBe(start)
